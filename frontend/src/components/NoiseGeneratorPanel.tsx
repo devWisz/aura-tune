@@ -1,125 +1,188 @@
 "use client";
 
 import React from "react";
+import { Brain, CloudRain, Power } from "lucide-react";
 import { useAudioStore } from "@/store/useAudioStore";
-import { NoiseColor } from "@/lib/audio/noiseSynthesizer";
+import { NOISE_COLORS, NoiseColor } from "@/lib/audio/noiseSynthesizer";
+import { Button, Panel, Slider } from "@/components/ui/Primitives";
+import { cn } from "@/lib/cn";
+
+const BRAINWAVE_PRESETS = [
+  { label: "Delta", beat: 2, base: 120, blurb: "Deep rest" },
+  { label: "Theta", beat: 5, base: 150, blurb: "Meditation" },
+  { label: "Alpha", beat: 10, base: 200, blurb: "Relaxed focus" },
+  { label: "Beta", beat: 18, base: 240, blurb: "Alert work" },
+  { label: "Gamma", beat: 40, base: 300, blurb: "Intense focus" },
+];
 
 export const NoiseGeneratorPanel: React.FC = () => {
   const {
     isNoiseActive,
     noiseColor,
     noiseVolume,
+    noiseTone,
     toggleNoise,
     setNoiseColor,
     setNoiseVolume,
+    setNoiseTone,
     isBinauralActive,
+    binauralBaseFreq,
+    binauralBeatFreq,
+    binauralVolume,
     toggleBinaural,
     setBinauralParams,
   } = useAudioStore();
 
   return (
-    <div className="bg-[#10121a] rounded-xl border border-zinc-800/80 p-6 space-y-6">
-      {/* Panel Header */}
-      <div className="flex items-center justify-between border-b border-zinc-800/80 pb-3">
-        <div>
-          <h2 className="text-sm font-semibold tracking-wider text-white uppercase">
-            Focus & Noise Generator
-          </h2>
-          <p className="text-xs text-zinc-400 mt-0.5">Procedural Sound Synthesis & Binaural Carrier</p>
+    <Panel
+      title="Focus Engine"
+      subtitle="The 730BT has no ANC — masking noise is the substitute"
+      icon={<CloudRain size={15} />}
+      bodyClassName="grid gap-4 lg:grid-cols-2"
+    >
+      {/* ---- Noise bed ---- */}
+      <div className="at-inset space-y-3.5 p-4">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <h3 className="text-[12px] font-semibold text-ink">Masking noise</h3>
+            <p className="mt-0.5 text-[11px] text-faint">Synthesised live — no samples, no loops to notice</p>
+          </div>
+          <Button
+            variant={isNoiseActive ? "primary" : "outline"}
+            onClick={toggleNoise}
+          >
+            <Power size={13} />
+            {isNoiseActive ? "On" : "Off"}
+          </Button>
         </div>
 
-        <button
-          onClick={toggleNoise}
-          className={`px-3.5 py-1.5 rounded-lg text-xs font-medium border transition ${
-            isNoiseActive
-              ? "bg-zinc-100 text-black border-white"
-              : "bg-zinc-900/80 text-zinc-300 border-zinc-800 hover:border-zinc-700"
-          }`}
-        >
-          {isNoiseActive ? "Noise Enabled" : "Enable Noise"}
-        </button>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {/* Procedural Color Noise Section */}
-        <div className="bg-[#090a0f] p-4 rounded-lg border border-zinc-800/60 space-y-3">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-white uppercase tracking-wider">Color Noise</span>
-            <span className="text-[10px] font-mono text-zinc-400 uppercase">{noiseColor}</span>
-          </div>
-
-          <div className="grid grid-cols-3 gap-2">
-            {(["white", "pink", "brown"] as NoiseColor[]).map((color) => (
-              <button
-                key={color}
-                onClick={() => setNoiseColor(color)}
-                className={`py-1.5 rounded text-xs capitalize font-medium border transition ${
-                  noiseColor === color
-                    ? "bg-zinc-100 text-black border-white"
-                    : "bg-zinc-900 text-zinc-400 border-zinc-800 hover:text-white"
-                }`}
+        <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-3">
+          {NOISE_COLORS.map((color) => (
+            <button
+              key={color.id}
+              onClick={() => setNoiseColor(color.id as NoiseColor)}
+              title={color.blurb}
+              className={cn(
+                "at-focus rounded-lg border px-2 py-2 text-left transition-colors",
+                noiseColor === color.id
+                  ? "border-accent/50 bg-accent/10"
+                  : "border-line-soft bg-white/[0.02] hover:border-line"
+              )}
+            >
+              <span
+                className={cn(
+                  "block text-[11px] font-medium",
+                  noiseColor === color.id ? "text-accent" : "text-dim"
+                )}
               >
-                {color}
-              </button>
-            ))}
-          </div>
-
-          <div className="space-y-1 pt-1">
-            <div className="flex justify-between text-xs text-zinc-400 font-mono">
-              <span>Intensity</span>
-              <span>{Math.round(noiseVolume * 100)}%</span>
-            </div>
-            <input
-              type="range"
-              min="0"
-              max="1"
-              step="0.01"
-              value={noiseVolume}
-              onChange={(e) => setNoiseVolume(parseFloat(e.target.value))}
-              className="w-full h-1 bg-zinc-800 rounded appearance-none cursor-pointer accent-white"
-            />
-          </div>
+                {color.label}
+              </span>
+            </button>
+          ))}
         </div>
 
-        {/* Binaural Beats Generator */}
-        <div className="bg-[#090a0f] p-4 rounded-lg border border-zinc-800/60 space-y-3">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-white uppercase tracking-wider">Binaural Carrier</span>
-            <button
-              onClick={toggleBinaural}
-              className={`px-2.5 py-1 rounded text-xs font-medium border transition ${
-                isBinauralActive
-                  ? "bg-zinc-100 text-black border-white"
-                  : "bg-zinc-900 text-zinc-400 border-zinc-800 hover:text-white"
-              }`}
-            >
-              {isBinauralActive ? "On (10Hz)" : "Off"}
-            </button>
-          </div>
+        <p className="text-[11px] leading-snug text-faint">
+          {NOISE_COLORS.find((c) => c.id === noiseColor)?.blurb}
+        </p>
 
-          <p className="text-[11px] text-zinc-400">
-            Produces a 10Hz Alpha wave frequency offset between drivers for concentration.
-          </p>
+        <Slider
+          label="Level"
+          value={noiseVolume}
+          min={0}
+          max={0.6}
+          step={0.005}
+          onChange={setNoiseVolume}
+          format={(v) => `${Math.round((v / 0.6) * 100)}%`}
+        />
 
-          <div className="grid grid-cols-2 gap-2 text-xs pt-1">
-            <button
-              onClick={() => setBinauralParams(200, 10, 0.15)}
-              className="p-2 rounded bg-zinc-900 border border-zinc-800 hover:border-zinc-700 text-left"
-            >
-              <div className="font-semibold text-zinc-200">Alpha (10Hz)</div>
-              <div className="text-[10px] text-zinc-500 font-mono">Focus</div>
-            </button>
-
-            <button
-              onClick={() => setBinauralParams(150, 4, 0.15)}
-              className="p-2 rounded bg-zinc-900 border border-zinc-800 hover:border-zinc-700 text-left"
-            >
-              <div className="font-semibold text-zinc-200">Theta (4Hz)</div>
-              <div className="text-[10px] text-zinc-500 font-mono">Relaxation</div>
-            </button>
-          </div>
-        </div>
+        <Slider
+          label="Tone"
+          value={noiseTone}
+          min={200}
+          max={20000}
+          step={100}
+          onChange={setNoiseTone}
+          format={(v) => (v >= 19900 ? "Full range" : `${(v / 1000).toFixed(1)} kHz lowpass`)}
+        />
       </div>
-    </div>
+
+      {/* ---- Binaural ---- */}
+      <div className="at-inset space-y-3.5 p-4">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <h3 className="text-[12px] font-semibold text-ink">Binaural carrier</h3>
+            <p className="mt-0.5 text-[11px] text-faint">
+              Needs headphones — the effect comes from the difference between ears
+            </p>
+          </div>
+          <Button
+            variant={isBinauralActive ? "primary" : "outline"}
+            onClick={toggleBinaural}
+          >
+            <Brain size={13} />
+            {isBinauralActive ? `${binauralBeatFreq} Hz` : "Off"}
+          </Button>
+        </div>
+
+        <div className="grid grid-cols-3 gap-1.5 sm:grid-cols-5">
+          {BRAINWAVE_PRESETS.map((preset) => (
+            <button
+              key={preset.label}
+              onClick={() => setBinauralParams(preset.base, preset.beat, binauralVolume)}
+              className={cn(
+                "at-focus rounded-lg border px-1.5 py-2 text-center transition-colors",
+                binauralBeatFreq === preset.beat
+                  ? "border-accent2/50 bg-accent2/10"
+                  : "border-line-soft bg-white/[0.02] hover:border-line"
+              )}
+            >
+              <span
+                className={cn(
+                  "block text-[11px] font-medium",
+                  binauralBeatFreq === preset.beat ? "text-accent2" : "text-dim"
+                )}
+              >
+                {preset.label}
+              </span>
+              <span className="at-mono mt-0.5 block text-[9px] text-faint">{preset.beat} Hz</span>
+            </button>
+          ))}
+        </div>
+
+        <Slider
+          label="Carrier frequency"
+          value={binauralBaseFreq}
+          min={60}
+          max={500}
+          step={1}
+          onChange={(v) => setBinauralParams(v, binauralBeatFreq, binauralVolume)}
+          format={(v) => `${v} Hz`}
+        />
+        <Slider
+          label="Beat frequency"
+          value={binauralBeatFreq}
+          min={1}
+          max={40}
+          step={0.5}
+          onChange={(v) => setBinauralParams(binauralBaseFreq, v, binauralVolume)}
+          format={(v) => `${v} Hz`}
+        />
+        <Slider
+          label="Level"
+          value={binauralVolume}
+          min={0}
+          max={0.4}
+          step={0.005}
+          onChange={(v) => setBinauralParams(binauralBaseFreq, binauralBeatFreq, v)}
+          format={(v) => `${Math.round((v / 0.4) * 100)}%`}
+        />
+
+        <p className="text-[11px] leading-relaxed text-faint">
+          {BRAINWAVE_PRESETS.find((p) => p.beat === binauralBeatFreq)?.blurb ??
+            "Custom beat frequency"}
+          . Keep the level low; this is meant to sit under your music, not replace it.
+        </p>
+      </div>
+    </Panel>
   );
 };

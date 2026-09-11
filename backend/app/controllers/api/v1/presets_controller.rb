@@ -3,36 +3,48 @@ module Api
     class PresetsController < ApplicationController
       def index
         # Fallback presets in-memory dataset if database is fresh
+        # Fallback set mirrors the client's 730BT library in
+        # `frontend/src/store/useAudioStore.ts` — keep the ids in sync.
         default_presets = [
           {
-            id: "jbl-tune-bass",
-            name: "JBL Tune Bass Boost",
-            description: "Deep punchy low-end optimized for JBL Tune 750BT / 760NC driver responsiveness.",
-            headphoneModel: "JBL Tune 760NC",
-            eqGains: [8, 6, 4, 1, 0, -1, 0, 2, 4, 5],
-            reverbPreset: "room",
-            author: "AuraTune Audio Lab",
-            likes: 342
+            id: "jbl730-reference",
+            name: "730BT Reference",
+            description: "The house correction: Pure Bass shelf neutralised, scooped mids restored, 8 kHz peak tamed.",
+            headphoneModel: "JBL Tune 730BT",
+            eqGains: [-3, -5, -4, -1.5, 0.5, 1.5, 2.5, 1, -2.5, 1.5],
+            reverbPreset: "none",
+            author: "AuraTune",
+            likes: 412
           },
           {
-            id: "vocal-clarity",
-            name: "Vocal & Podcast Clarity",
-            description: "Lift mid-range frequencies and roll off sub-bass rumble for crisp speech intelligibility.",
-            headphoneModel: "Universal / Studio",
-            eqGains: [-4, -2, 0, 2, 5, 6, 4, 2, 1, 0],
+            id: "jbl730-sub",
+            name: "Sub Extension",
+            description: "Bass without the mud: lifts the 31 Hz sub the 40 mm driver rolls off while cutting the 125 Hz bloom.",
+            headphoneModel: "JBL Tune 730BT",
+            eqGains: [4, 1, -3, -2, -0.5, 1, 2, 1, -2, 1],
             reverbPreset: "none",
             author: "AuraTune Audio Lab",
-            likes: 218
+            likes: 358
           },
           {
-            id: "acoustic-warmth",
-            name: "Acoustic Warmth",
-            description: "Smooth organic acoustic signature with gentle treble roll-off and warm lower mids.",
-            headphoneModel: "Sennheiser / Open-Back",
-            eqGains: [3, 4, 3, 1, -1, 0, 1, 2, 0, -2],
-            reverbPreset: "hall",
-            author: "Auralist",
-            likes: 184
+            id: "jbl730-vocal",
+            name: "Voice & Podcast",
+            description: "Clears the bass shelf out of the way so speech sits forward and stays intelligible.",
+            headphoneModel: "JBL Tune 730BT",
+            eqGains: [-6, -6, -3, 0, 2.5, 4, 3.5, 1.5, -2, 0],
+            reverbPreset: "none",
+            author: "AuraTune Audio Lab",
+            likes: 241
+          },
+          {
+            id: "jbl730-commute",
+            name: "Commute (no ANC)",
+            description: "The 730BT isolates passively only. Cuts the low end that traffic rumble already masks and lifts what survives it.",
+            headphoneModel: "JBL Tune 730BT",
+            eqGains: [-8, -7, -4, -1, 2, 3, 3, 2, -1, 0],
+            reverbPreset: "none",
+            author: "AuraTune",
+            likes: 187
           }
         ]
 

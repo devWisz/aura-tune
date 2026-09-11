@@ -1,180 +1,413 @@
 "use client";
 
-import React, { useEffect, useRef } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
+import { RotateCcw, SlidersHorizontal, Sparkles } from "lucide-react";
 import { useAudioStore, DEFAULT_PRESETS } from "@/store/useAudioStore";
-import { EQ_FREQUENCIES } from "@/lib/audio/biquadFilterBank";
+import {
+  EQ_FREQUENCIES,
+  EQ_MAX_DB,
+  EQ_MIN_DB,
+  approximateResponseCurve,
+  ResponseArray,
+} from "@/lib/audio/biquadFilterBank";
+import { audioEngine } from "@/lib/audio/audioEngine";
+import { Button, Panel, Segmented, Slider } from "@/components/ui/Primitives";
+import { cn } from "@/lib/cn";
+
+const MIN_HZ = 20;
+const MAX_HZ = 20000;
+const CURVE_POINTS = 240;
+const PAD = { left: 30, right: 10, top: 12, bottom: 20 };
+
+const formatHz = (hz: number) => (hz >= 1000 ? `${hz / 1000}k` : `${hz}`);
+
+/** Log-spaced frequency axis, shared by the curve sampler and the renderer. */
+function makeFrequencyAxis(): ResponseArray {
+  const freqs = new Float32Array(CURVE_POINTS);
+  const logMin = Math.log10(MIN_HZ);
+  const logMax = Math.log10(MAX_HZ);
+  for (let i = 0; i < CURVE_POINTS; i++) {
+    freqs[i] = Math.pow(10, logMin + ((logMax - logMin) * i) / (CURVE_POINTS - 1));
+  }
+  return freqs as ResponseArray;
+}
 
 export const EqualizerPanel: React.FC = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const { eqGains, setEQGain, activePresetId, applyPreset, reverbPreset, setReverbPreset } = useAudioStore();
+  const axisRef = useRef<ResponseArray>(makeFrequencyAxis());
+  const dragBandRef = useRef<number | null>(null);
+  const [hoverBand, setHoverBand] = useState<number | null>(null);
 
-  // Draw Spline Curve on Canvas when EQ gains change
-  useEffect(() => {
+  const {
+    eqGains,
+    setEQGain,
+    nudgeEQGain,
+    activePresetId,
+    applyPreset,
+    resetEQ,
+    eqBypassed,
+    dsp,
+    setDsp,
+  } = useAudioStore();
+
+  /* ---------------- Canvas geometry helpers ---------------- */
+
+  const xForFreq = useCallback((hz: number, width: number) => {
+    const t = (Math.log10(hz) - Math.log10(MIN_HZ)) / (Math.log10(MAX_HZ) - Math.log10(MIN_HZ));
+    return PAD.left + t * (width - PAD.left - PAD.right);
+  }, []);
+
+  const yForDb = useCallback((db: number, height: number) => {
+    const plotHeight = height - PAD.top - PAD.bottom;
+    const t = (EQ_MAX_DB - db) / (EQ_MAX_DB - EQ_MIN_DB);
+    return PAD.top + t * plotHeight;
+  }, []);
+
+  const dbForY = useCallback((y: number, height: number) => {
+    const plotHeight = height - PAD.top - PAD.bottom;
+    const t = (y - PAD.top) / plotHeight;
+    return EQ_MAX_DB - t * (EQ_MAX_DB - EQ_MIN_DB);
+  }, []);
+
+  /* ---------------- Renderer ---------------- */
+
+  const draw = useCallback(() => {
     const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
+    const ctx = canvas?.getContext("2d");
+    if (!canvas || !ctx) return;
 
-    const width = canvas.width;
-    const height = canvas.height;
-    const padding = 16;
-    const usableWidth = width - padding * 2;
-    const centerY = height / 2;
-
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const width = canvas.clientWidth || 800;
+    const height = canvas.clientHeight || 200;
+    if (canvas.width !== width * dpr || canvas.height !== height * dpr) {
+      canvas.width = Math.floor(width * dpr);
+      canvas.height = Math.floor(height * dpr);
+    }
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, width, height);
 
-    // Draw Subtle Grid Lines
-    ctx.strokeStyle = "rgba(255, 255, 255, 0.05)";
-    ctx.lineWidth = 1;
+    const plotRight = width - PAD.right;
 
-    // Zero dB center line
-    ctx.beginPath();
-    ctx.moveTo(padding, centerY);
-    ctx.lineTo(width - padding, centerY);
-    ctx.stroke();
+    // --- dB grid ---
+    ctx.font = "9px ui-monospace, monospace";
+    ctx.textBaseline = "middle";
+    for (const db of [12, 6, 0, -6, -12]) {
+      const y = yForDb(db, height);
+      ctx.strokeStyle = db === 0 ? "rgba(255,255,255,0.16)" : "rgba(255,255,255,0.055)";
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(PAD.left, y);
+      ctx.lineTo(plotRight, y);
+      ctx.stroke();
 
-    // Map EQ Gains to Coordinates
-    const points = eqGains.map((gain, i) => {
-      const x = padding + (i / (eqGains.length - 1)) * usableWidth;
-      const y = centerY - (gain / 24) * (centerY - 12);
-      return { x, y };
-    });
-
-    // Draw Spline Curve
-    ctx.beginPath();
-    ctx.moveTo(points[0].x, points[0].y);
-
-    for (let i = 0; i < points.length - 1; i++) {
-      const xc = (points[i].x + points[i + 1].x) / 2;
-      const yc = (points[i].y + points[i + 1].y) / 2;
-      ctx.quadraticCurveTo(points[i].x, points[i].y, xc, yc);
+      ctx.fillStyle = "rgba(255,255,255,0.3)";
+      ctx.textAlign = "right";
+      ctx.fillText(db > 0 ? `+${db}` : `${db}`, PAD.left - 6, y);
     }
-    ctx.lineTo(points[points.length - 1].x, points[points.length - 1].y);
 
-    ctx.strokeStyle = "#ffffff";
+    // --- Frequency grid ---
+    ctx.textAlign = "center";
+    ctx.textBaseline = "alphabetic";
+    for (const hz of [20, 50, 100, 200, 500, 1000, 2000, 5000, 10000, 20000]) {
+      const x = xForFreq(hz, width);
+      ctx.strokeStyle = "rgba(255,255,255,0.045)";
+      ctx.beginPath();
+      ctx.moveTo(x, PAD.top);
+      ctx.lineTo(x, height - PAD.bottom);
+      ctx.stroke();
+
+      ctx.fillStyle = "rgba(255,255,255,0.3)";
+      ctx.fillText(formatHz(hz), Math.min(Math.max(x, PAD.left + 8), plotRight - 8), height - 6);
+    }
+
+    // --- Response curve, measured from the live filters when they exist ---
+    const axis = axisRef.current;
+    const measured = audioEngine.getEQResponse(axis);
+    const curve = measured ?? approximateResponseCurve(eqGains, axis);
+
+    const points = Array.from(curve, (db, i) => ({
+      x: xForFreq(axis[i], width),
+      y: yForDb(Math.max(EQ_MIN_DB, Math.min(EQ_MAX_DB, db)), height),
+    }));
+
+    const zeroY = yForDb(0, height);
+    const accent = eqBypassed ? "148, 152, 168" : "56, 208, 255";
+
+    // Filled area between the curve and 0 dB
+    ctx.beginPath();
+    ctx.moveTo(points[0].x, zeroY);
+    points.forEach((p) => ctx.lineTo(p.x, p.y));
+    ctx.lineTo(points[points.length - 1].x, zeroY);
+    ctx.closePath();
+    const fill = ctx.createLinearGradient(0, PAD.top, 0, height - PAD.bottom);
+    fill.addColorStop(0, `rgba(${accent}, 0.26)`);
+    fill.addColorStop(0.5, `rgba(${accent}, 0.06)`);
+    fill.addColorStop(1, `rgba(149, 122, 255, 0.2)`);
+    ctx.fillStyle = fill;
+    ctx.fill();
+
+    // Curve stroke, with a soft glow underneath
+    ctx.beginPath();
+    points.forEach((p, i) => (i === 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y)));
+    ctx.strokeStyle = `rgba(${accent}, 0.2)`;
+    ctx.lineWidth = 6;
+    ctx.lineJoin = "round";
+    ctx.stroke();
+    ctx.strokeStyle = `rgba(${accent}, ${eqBypassed ? 0.5 : 1})`;
     ctx.lineWidth = 2;
     ctx.stroke();
 
-    // Frequency Control Points
-    points.forEach((pt) => {
-      ctx.fillStyle = "#ffffff";
+    // --- Draggable band handles ---
+    EQ_FREQUENCIES.forEach((hz, i) => {
+      const x = xForFreq(hz, width);
+      const y = yForDb(Math.max(EQ_MIN_DB, Math.min(EQ_MAX_DB, eqGains[i] ?? 0)), height);
+      const isHot = hoverBand === i || dragBandRef.current === i;
+
       ctx.beginPath();
-      ctx.arc(pt.x, pt.y, 3, 0, Math.PI * 2);
+      ctx.moveTo(x, zeroY);
+      ctx.lineTo(x, y);
+      ctx.strokeStyle = `rgba(${accent}, ${isHot ? 0.55 : 0.22})`;
+      ctx.lineWidth = 1;
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.arc(x, y, isHot ? 6 : 4, 0, Math.PI * 2);
+      ctx.fillStyle = isHot ? "#ffffff" : `rgba(${accent}, 0.95)`;
       ctx.fill();
+      ctx.lineWidth = 2;
+      ctx.strokeStyle = "rgba(8,9,13,0.9)";
+      ctx.stroke();
     });
-  }, [eqGains]);
+  }, [eqGains, eqBypassed, hoverBand, xForFreq, yForDb]);
+
+  useEffect(() => {
+    draw();
+  }, [draw]);
+
+  // Redraw on resize — the canvas is fluid-width.
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas || typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(() => draw());
+    observer.observe(canvas);
+    return () => observer.disconnect();
+  }, [draw]);
+
+  /* ---------------- Pointer interaction ---------------- */
+
+  const bandAtX = useCallback(
+    (x: number, width: number): number => {
+      let nearest = 0;
+      let best = Infinity;
+      EQ_FREQUENCIES.forEach((hz, i) => {
+        const distance = Math.abs(xForFreq(hz, width) - x);
+        if (distance < best) {
+          best = distance;
+          nearest = i;
+        }
+      });
+      return best < 34 ? nearest : -1;
+    },
+    [xForFreq]
+  );
+
+  const pointerPos = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    return { x: e.clientX - rect.left, y: e.clientY - rect.top, width: rect.width, height: rect.height };
+  };
+
+  const handlePointerDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    const { x, y, width, height } = pointerPos(e);
+    const band = bandAtX(x, width);
+    if (band < 0) return;
+
+    e.currentTarget.setPointerCapture(e.pointerId);
+    dragBandRef.current = band;
+    setHoverBand(band);
+    setEQGain(band, Math.round(dbForY(y, height) * 2) / 2);
+  };
+
+  const handlePointerMove = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    const { x, y, width, height } = pointerPos(e);
+    const band = dragBandRef.current;
+
+    if (band === null) {
+      setHoverBand(bandAtX(x, width) >= 0 ? bandAtX(x, width) : null);
+      return;
+    }
+    setEQGain(band, Math.round(dbForY(y, height) * 2) / 2);
+  };
+
+  const endDrag = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    if (dragBandRef.current !== null) {
+      try {
+        e.currentTarget.releasePointerCapture(e.pointerId);
+      } catch {
+        /* pointer already released */
+      }
+    }
+    dragBandRef.current = null;
+  };
+
+  const presetOptions = DEFAULT_PRESETS.slice(0, 6);
 
   return (
-    <div className="bg-[#10121a] rounded-xl border border-zinc-800/80 p-6 space-y-6">
-      {/* Header & Spatial Room Selector */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-zinc-800/80 pb-4">
-        <div>
-          <h2 className="text-sm font-semibold tracking-wider text-white uppercase">
-            10-Band Parametric Equalizer
-          </h2>
-          <p className="text-xs text-zinc-400 mt-0.5">Cascading Biquad Filter Frequency Shaping</p>
-        </div>
-
-        {/* Spatial Room Selector */}
-        <div className="flex items-center space-x-1.5 bg-zinc-900/80 p-1 rounded-lg border border-zinc-800">
-          <span className="text-xs text-zinc-400 px-2 font-mono uppercase">Reverb:</span>
-          {(["none", "room", "hall", "cathedral"] as const).map((mode) => (
-            <button
-              key={mode}
-              onClick={() => setReverbPreset(mode)}
-              className={`px-2.5 py-1 rounded text-xs capitalize transition ${
-                reverbPreset === mode
-                  ? "bg-zinc-100 text-black font-medium"
-                  : "text-zinc-400 hover:text-white"
-              }`}
-            >
-              {mode}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Preset Quick Selector */}
-      <div className="flex flex-wrap gap-2">
-        {DEFAULT_PRESETS.map((preset) => (
+    <Panel
+      title="10-Band Parametric Equalizer"
+      subtitle={
+        eqBypassed
+          ? "Bypassed — you are hearing the untouched signal"
+          : "Tuned for the JBL Tune 730BT — drag the curve or the faders, changes are audible immediately"
+      }
+      icon={<SlidersHorizontal size={15} />}
+      actions={
+        <>
+          <span className="at-mono hidden text-[10px] text-faint sm:inline">
+            Preamp {dsp.preampDb > 0 ? "+" : ""}
+            {dsp.preampDb.toFixed(1)} dB
+          </span>
+          <Button variant="ghost" onClick={resetEQ}>
+            <RotateCcw size={13} /> Flat
+          </Button>
+        </>
+      }
+      bodyClassName="space-y-4"
+    >
+      {/* Preset shortcuts */}
+      <div className="flex flex-wrap items-center gap-1.5">
+        {presetOptions.map((preset) => (
           <button
             key={preset.id}
             onClick={() => applyPreset(preset)}
-            className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition ${
+            className={cn(
+              "at-focus rounded-lg border px-2.5 py-1 text-[11px] font-medium transition-colors",
               activePresetId === preset.id
-                ? "bg-zinc-100 text-black border-white"
-                : "bg-zinc-900/60 text-zinc-400 border-zinc-800 hover:text-white hover:border-zinc-700"
-            }`}
+                ? "border-accent/50 bg-accent/10 text-accent"
+                : "border-line-soft bg-white/[0.02] text-faint hover:border-line hover:text-dim"
+            )}
           >
             {preset.name}
           </button>
         ))}
-
-        <button
-          onClick={() =>
-            applyPreset({
-              id: "flat-neutral",
-              name: "Flat & Neutral",
-              description: "Flat response",
-              headphoneModel: "Studio",
-              eqGains: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-              reverbPreset: "none",
-              author: "System",
-              likes: 0,
-            })
-          }
-          className="px-3 py-1.5 rounded-lg text-xs font-medium bg-zinc-900/60 text-zinc-400 border border-zinc-800 hover:text-white hover:border-zinc-700 transition ml-auto"
-        >
-          Reset Flat
-        </button>
+        {activePresetId === "custom" && (
+          <span className="at-mono inline-flex items-center gap-1 rounded-lg border border-accent2/40 bg-accent2/10 px-2.5 py-1 text-[10px] uppercase tracking-wider text-accent2">
+            <Sparkles size={10} /> Custom
+          </span>
+        )}
       </div>
 
-      {/* Frequency Response Spline Canvas */}
-      <div className="bg-[#090a0f] rounded-lg border border-zinc-800/80 p-3 overflow-hidden">
-        <canvas ref={canvasRef} width={700} height={100} className="w-full h-24 block" />
-        <div className="flex justify-between px-4 text-[10px] font-mono text-zinc-500 mt-1">
-          <span>20Hz</span>
-          <span>100Hz</span>
-          <span>1kHz</span>
-          <span>5kHz</span>
-          <span>20kHz</span>
-        </div>
+      {/* Response curve */}
+      <div className="at-inset overflow-hidden p-1">
+        <canvas
+          ref={canvasRef}
+          className={cn(
+            "block h-[190px] w-full touch-none sm:h-[220px]",
+            hoverBand !== null ? "cursor-ns-resize" : "cursor-crosshair"
+          )}
+          onPointerDown={handlePointerDown}
+          onPointerMove={handlePointerMove}
+          onPointerUp={endDrag}
+          onPointerCancel={endDrag}
+          onPointerLeave={(e) => {
+            endDrag(e);
+            setHoverBand(null);
+          }}
+          role="img"
+          aria-label="Equalizer frequency response curve"
+        />
       </div>
 
-      {/* 10 Band Sliders */}
-      <div className="grid grid-cols-5 sm:grid-cols-10 gap-3 pt-1">
+      {/* Faders */}
+      <div className="grid grid-cols-5 gap-1.5 sm:grid-cols-10">
         {EQ_FREQUENCIES.map((freq, index) => {
-          const gain = eqGains[index] || 0;
-          const label = freq >= 1000 ? `${freq / 1000}k` : `${freq}`;
+          const gain = eqGains[index] ?? 0;
+          const isHot = hoverBand === index;
 
           return (
             <div
               key={freq}
-              className="flex flex-col items-center bg-[#090a0f] p-3 rounded-lg border border-zinc-800/60 space-y-3"
+              onMouseEnter={() => setHoverBand(index)}
+              onMouseLeave={() => setHoverBand(null)}
+              className={cn(
+                "flex flex-col items-center gap-2 rounded-lg border px-1 py-2.5 transition-colors",
+                isHot ? "border-accent/40 bg-accent/[0.06]" : "border-line-soft bg-sunken/60"
+              )}
             >
-              <span className="text-[11px] font-mono text-zinc-300">
-                {gain > 0 ? `+${gain}` : gain}dB
+              <span
+                className={cn(
+                  "at-mono text-[10px]",
+                  gain === 0 ? "text-faint" : gain > 0 ? "text-accent" : "text-accent2"
+                )}
+              >
+                {gain > 0 ? "+" : ""}
+                {gain.toFixed(1)}
               </span>
 
-              <div className="h-32 flex items-center">
-                <input
-                  type="range"
-                  min="-24"
-                  max="24"
-                  step="0.5"
-                  value={gain}
-                  onChange={(e) => setEQGain(index, parseFloat(e.target.value))}
-                  className="h-28 w-1.5 appearance-none bg-zinc-800 rounded cursor-pointer accent-white [writing-mode:vertical-lr] [direction:rtl]"
-                />
-              </div>
+              <input
+                type="range"
+                className="at-fader h-24"
+                min={EQ_MIN_DB}
+                max={EQ_MAX_DB}
+                step={0.5}
+                value={gain}
+                aria-label={`${formatHz(freq)} hertz band gain`}
+                onChange={(e) => setEQGain(index, parseFloat(e.target.value))}
+                onKeyDown={(e) => {
+                  // Shift for fine 0.5 dB steps, otherwise 1 dB.
+                  if (e.key === "ArrowUp" || e.key === "ArrowDown") {
+                    e.preventDefault();
+                    const magnitude = e.shiftKey ? 0.5 : 1;
+                    nudgeEQGain(index, e.key === "ArrowUp" ? magnitude : -magnitude);
+                  }
+                }}
+              />
 
-              <span className="text-[10px] font-mono text-zinc-500 uppercase">
-                {label}
-              </span>
+              <button
+                onDoubleClick={() => setEQGain(index, 0)}
+                onClick={() => setEQGain(index, 0)}
+                title="Reset this band to 0 dB"
+                className="at-focus at-mono rounded px-1 text-[9px] uppercase tracking-wider text-faint transition-colors hover:text-ink"
+              >
+                {formatHz(freq)}
+              </button>
             </div>
           );
         })}
       </div>
-    </div>
+
+      {/* Band width + preamp */}
+      <div className="grid gap-4 border-t border-line-soft pt-4 sm:grid-cols-2">
+        <Slider
+          label="Band width (Q)"
+          value={dsp.eqQ}
+          min={0.4}
+          max={4}
+          step={0.01}
+          onChange={(v) => setDsp("eqQ", v)}
+          format={(v) => (v < 1 ? `${v.toFixed(2)} · wide` : v > 2 ? `${v.toFixed(2)} · narrow` : v.toFixed(2))}
+        />
+        <div className="space-y-1.5">
+          <Slider
+            label="Preamp"
+            value={dsp.preampDb}
+            min={-18}
+            max={6}
+            step={0.5}
+            onChange={(v) => setDsp("preampDb", v)}
+            format={(v) => `${v > 0 ? "+" : ""}${v.toFixed(1)} dB`}
+            disabled={dsp.autoGain}
+          />
+          <Segmented
+            size="xs"
+            value={dsp.autoGain ? "auto" : "manual"}
+            options={[
+              { id: "auto", label: "Auto gain" },
+              { id: "manual", label: "Manual" },
+            ]}
+            onChange={(id) => setDsp("autoGain", id === "auto")}
+          />
+        </div>
+      </div>
+    </Panel>
   );
 };

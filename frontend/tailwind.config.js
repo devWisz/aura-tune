@@ -1,4 +1,6 @@
 /** @type {import('tailwindcss').Config} */
+const withAlpha = (variable) => `rgb(var(${variable}) / <alpha-value>)`;
+
 module.exports = {
   content: [
     "./src/pages/**/*.{js,ts,jsx,tsx,mdx}",
@@ -9,27 +11,36 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        studio: {
-          bg: "#0b0f19",
-          card: "#121827",
-          border: "#1f293d",
-          accent: "#06b6d4",
-          violet: "#8b5cf6",
-          emerald: "#10b981",
-          amber: "#f59e0b",
-          rose: "#f43f5e",
-        },
+        bg: withAlpha("--bg"),
+        raised: withAlpha("--bg-raised"),
+        sunken: withAlpha("--bg-sunken"),
+        panel: withAlpha("--panel"),
+        line: withAlpha("--line"),
+        "line-soft": withAlpha("--line-soft"),
+        ink: withAlpha("--text"),
+        dim: withAlpha("--text-dim"),
+        faint: withAlpha("--text-faint"),
+        accent: withAlpha("--accent"),
+        accent2: withAlpha("--accent-2"),
+        warm: withAlpha("--accent-warm"),
+        danger: withAlpha("--danger"),
+        ok: withAlpha("--ok"),
+      },
+      fontFamily: {
+        mono: [
+          "ui-monospace",
+          "SF Mono",
+          "SFMono-Regular",
+          "Menlo",
+          "Consolas",
+          "monospace",
+        ],
       },
       animation: {
-        'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
-        'glow': 'glow 2s ease-in-out infinite alternate',
+        "fade-up": "at-fade-up 0.28s cubic-bezier(0.22, 1, 0.36, 1) both",
+        "pop-in": "at-pop-in 0.22s cubic-bezier(0.22, 1, 0.36, 1) both",
+        "ping-ring": "at-ping-ring 1.8s cubic-bezier(0, 0, 0.2, 1) infinite",
       },
-      keyframes: {
-        glow: {
-          '0%': { boxShadow: '0 0 15px rgba(6, 182, 212, 0.3)' },
-          '100%': { boxShadow: '0 0 30px rgba(139, 92, 246, 0.6)' },
-        }
-      }
     },
   },
   plugins: [],

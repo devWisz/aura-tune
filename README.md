@@ -1,8 +1,53 @@
 # 🎧 AuraTune Web Studio
 
-**AuraTune Web Studio** is a high-performance, web-based digital signal processing (DSP) dashboard and audio suite designed to elevate your headphone experience (optimized for JBL Tune series and modern audiophile gear).
+**AuraTune Web Studio** is a web-based digital signal processing (DSP) dashboard and audio suite, **built and tuned specifically for the JBL Tune 730BT**. Other headphones are supported through fallback correction profiles, but every default in this build — the EQ curve, the preset library, the crossfeed amount, the masking noise — is chosen for that one model.
 
 Combining modern web audio engines, real-time hardware connectivity, and a **Ruby on Rails API backend**, AuraTune turns any browser into a professional audio engine with custom equalization, AI-assisted hearing profiling, software noise masking, 3D spatialization, and cloud preset sync.
+
+---
+
+## 🎧 Tuned for the JBL Tune 730BT
+
+| Spec | Value |
+| --- | --- |
+| Driver | 40 mm dynamic |
+| Impedance | 32 Ω |
+| Rated response | 20 Hz – 20 kHz |
+| Bluetooth | 6.0 / LE Audio |
+| Codecs | SBC · AAC · LC3 |
+| Battery | 76 h (5 min charge → 5 h) |
+| Noise control | **Passive isolation only — no ANC** |
+| Weight | 218 g, foldable |
+
+Two facts about this headphone drive most of the defaults:
+
+**It ships with the JBL "Pure Bass" curve.** There is a large shelf around
+60–125 Hz, a scooped 1–2 kHz, and a hot region near 8 kHz. The house correction
+(`730BT Reference`) is a rough inverse of that: it cuts the mid-bass bloom,
+restores the mids, and softens the treble peak. Because that curve is almost all
+cut, the auto-gain stage adds make-up gain so applying it does not simply sound
+quieter than bypass. Presets that *add* bass add it at 31 Hz — sub-bass the
+40 mm driver genuinely lacks — rather than at 125 Hz, where it already has too
+much.
+
+**It has no active noise cancelling.** The Focus Engine's procedural masking
+noise is the substitute, and the `Commute (no ANC)` preset cuts the low end that
+street rumble already masks instead of fighting it.
+
+### Connecting them
+
+The browser cannot pair a Bluetooth headphone — pairing belongs to the operating
+system. The flow is:
+
+1. Hold the 730BT's power button ~5 s until the LED flashes.
+2. Pair it in your OS Bluetooth settings.
+3. Select **JBL Tune 730BT** in the studio's device panel. The DSP chain is
+   re-routed to it via `setSinkId`, and the house tuning is applied automatically
+   the first time it is seen.
+
+Device names are hidden by browsers until the page holds an audio permission, so
+the panel offers a one-shot microphone grant to reveal them; the track is stopped
+immediately and nothing is recorded.
 
 ---
 
@@ -23,7 +68,7 @@ Combining modern web audio engines, real-time hardware connectivity, and a **Rub
 
 ### ☁️ 3. Cloud Presets & Community Marketplace
 * **Cloud Sync via Ruby API**: Save custom EQ settings, noise layers, and spatial parameters to user accounts.
-* **Headphone Preset Marketplace**: Discover, rate, and apply community-crafted EQ profiles tailored for specific headphone models (*JBL Tune 750/760NC*, *Sony WH-1000XM5*, *Sennheiser HD600*, *AirPods Max*).
+* **Preset Library**: Eight tunings built on the 730BT correction baseline — Reference, Stock Pure Bass, Sub Extension, Voice & Podcast, Commute (no ANC), Gaming Positional, Late Night and Acoustic & Live — plus fallback profiles for *Sony WH-1000XM5*, *Sennheiser HD600* and *AirPods Max*.
 * **One-Click JSON Import / Export**: Share audio configurations instantly via shareable links or standalone JSON files.
 
 ### 🔊 4. Procedural Focus Engine & Soundscapes
@@ -32,7 +77,8 @@ Combining modern web audio engines, real-time hardware connectivity, and a **Rub
 * **Layerable Ambient Soundscapes**: Blend procedural noise with high-fidelity rain, ocean waves, and fireplace sound samples stored on the Rails Active Storage CDN.
 
 ### 📱 5. Hardware Integration & Telemetry
-* **Web Bluetooth Control (`navigator.bluetooth`)**: Direct connection to supported Bluetooth audio devices to monitor battery state, RSSI signal strength, and trigger firmware controls.
+* **Output routing (`AudioContext.setSinkId`)**: Re-targets the rendered DSP chain at the 730BT specifically, so the corrected signal lands on the headphones rather than the laptop speakers. This is what actually "connects" them.
+* **Web Bluetooth battery telemetry (`navigator.bluetooth`)**: The 730BT is an LE Audio headphone, so it can expose battery level over the standard BLE GATT battery service while advertising. Strictly a side channel — Web Bluetooth cannot carry audio, which the operating system owns over A2DP.
 * **Media Session API**: Deep integration with OS media controls, keyboard hardware hotkeys (Play/Pause, Track Skip), and lock-screen cover art cards.
 
 ### 👥 6. Real-Time Collaborative Listening Rooms

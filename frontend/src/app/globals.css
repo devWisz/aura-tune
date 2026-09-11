@@ -2,31 +2,270 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ------------------------------------------------------------------ *
+ * Design tokens
+ * ------------------------------------------------------------------ */
 :root {
-  --foreground-rgb: 240, 240, 243;
-  --background-rgb: 9, 10, 14;
+  --bg: 8 9 13;
+  --bg-raised: 15 17 24;
+  --bg-sunken: 5 6 10;
+  --panel: 17 19 27;
+  --line: 39 42 56;
+  --line-soft: 30 33 45;
+
+  --text: 237 238 243;
+  --text-dim: 148 152 168;
+  --text-faint: 99 103 120;
+
+  --accent: 56 208 255;
+  --accent-2: 149 122 255;
+  --accent-warm: 255 176 82;
+  --danger: 255 96 116;
+  --ok: 68 222 160;
+
+  --radius: 14px;
+}
+
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+
+html,
+body {
+  background: rgb(var(--bg));
+  color: rgb(var(--text));
 }
 
 body {
-  color: rgb(var(--foreground-rgb));
-  background-color: rgb(var(--background-rgb));
   min-height: 100vh;
-  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-  letter-spacing: -0.01em;
+  font-family: ui-sans-serif, -apple-system, BlinkMacSystemFont, "SF Pro Text",
+    "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  letter-spacing: -0.011em;
+  font-feature-settings: "cv02", "cv03", "cv04", "ss01";
+  overflow-x: hidden;
 }
 
-/* Minimalist Scrollbar */
+/* Ambient background wash — keeps the dark UI from reading as flat black. */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background:
+    radial-gradient(60rem 40rem at 12% -10%, rgb(var(--accent) / 0.07), transparent 60%),
+    radial-gradient(50rem 36rem at 92% 4%, rgb(var(--accent-2) / 0.06), transparent 62%);
+}
+
+/* ------------------------------------------------------------------ *
+ * Scrollbars
+ * ------------------------------------------------------------------ */
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 8px;
+  height: 8px;
 }
 ::-webkit-scrollbar-track {
-  background: #090a0f;
+  background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: #222530;
-  border-radius: 3px;
+  background: rgb(var(--line));
+  border-radius: 99px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #3b3f52;
+  background: rgb(var(--text-faint));
+}
+
+/* ------------------------------------------------------------------ *
+ * Range inputs — one consistent look for every slider in the studio
+ * ------------------------------------------------------------------ */
+input[type="range"].at-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
+  cursor: pointer;
+  touch-action: none;
+}
+
+input[type="range"].at-slider::-webkit-slider-runnable-track {
+  height: 4px;
+  border-radius: 99px;
+  background: linear-gradient(
+    to right,
+    rgb(var(--accent) / 0.85) 0%,
+    rgb(var(--accent) / 0.85) var(--fill, 50%),
+    rgb(var(--line)) var(--fill, 50%),
+    rgb(var(--line)) 100%
+  );
+}
+input[type="range"].at-slider::-moz-range-track {
+  height: 4px;
+  border-radius: 99px;
+  background: rgb(var(--line));
+}
+input[type="range"].at-slider::-moz-range-progress {
+  height: 4px;
+  border-radius: 99px;
+  background: rgb(var(--accent) / 0.85);
+}
+
+input[type="range"].at-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  margin-top: -5px;
+  border-radius: 99px;
+  background: #fff;
+  border: 1px solid rgb(var(--bg));
+  box-shadow: 0 0 0 1px rgb(var(--accent) / 0.45), 0 2px 6px rgb(0 0 0 / 0.55);
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+}
+input[type="range"].at-slider::-moz-range-thumb {
+  width: 13px;
+  height: 13px;
+  border-radius: 99px;
+  background: #fff;
+  border: 1px solid rgb(var(--bg));
+  box-shadow: 0 0 0 1px rgb(var(--accent) / 0.45);
+}
+input[type="range"].at-slider:hover::-webkit-slider-thumb,
+input[type="range"].at-slider:focus-visible::-webkit-slider-thumb {
+  transform: scale(1.18);
+  box-shadow: 0 0 0 1px rgb(var(--accent)), 0 0 12px rgb(var(--accent) / 0.5);
+}
+input[type="range"].at-slider:focus-visible {
+  outline: none;
+}
+
+/* Vertical EQ faders */
+input[type="range"].at-fader {
+  -webkit-appearance: none;
+  appearance: none;
+  writing-mode: vertical-lr;
+  direction: rtl;
+  width: 22px;
+  background: transparent;
+  cursor: ns-resize;
+  touch-action: none;
+}
+input[type="range"].at-fader::-webkit-slider-runnable-track {
+  width: 4px;
+  border-radius: 99px;
+  background: rgb(var(--line-soft));
+}
+input[type="range"].at-fader::-moz-range-track {
+  width: 4px;
+  border-radius: 99px;
+  background: rgb(var(--line-soft));
+}
+input[type="range"].at-fader::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 20px;
+  height: 11px;
+  border-radius: 3px;
+  background: linear-gradient(180deg, #f7f8fb, #b9bdcc);
+  border: 1px solid rgb(0 0 0 / 0.6);
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.7), inset 0 -1px 0 rgb(0 0 0 / 0.25);
+  margin-left: -8px;
+  transition: box-shadow 0.12s ease;
+}
+input[type="range"].at-fader::-moz-range-thumb {
+  width: 20px;
+  height: 11px;
+  border-radius: 3px;
+  background: linear-gradient(180deg, #f7f8fb, #b9bdcc);
+  border: 1px solid rgb(0 0 0 / 0.6);
+}
+input[type="range"].at-fader:hover::-webkit-slider-thumb,
+input[type="range"].at-fader:focus-visible::-webkit-slider-thumb {
+  box-shadow: 0 0 0 1px rgb(var(--accent) / 0.8), 0 0 14px rgb(var(--accent) / 0.45);
+}
+input[type="range"].at-fader:focus-visible {
+  outline: none;
+}
+
+/* ------------------------------------------------------------------ *
+ * Utilities
+ * ------------------------------------------------------------------ */
+@layer utilities {
+  .at-panel {
+    background: linear-gradient(180deg, rgb(var(--panel)), rgb(var(--panel) / 0.72));
+    border: 1px solid rgb(var(--line-soft));
+    border-radius: var(--radius);
+    box-shadow: 0 1px 0 rgb(255 255 255 / 0.03) inset, 0 18px 40px -28px rgb(0 0 0 / 0.9);
+    backdrop-filter: blur(12px);
+  }
+  .at-inset {
+    background: rgb(var(--bg-sunken) / 0.85);
+    border: 1px solid rgb(var(--line-soft));
+    border-radius: 10px;
+  }
+  .at-mono {
+    font-family: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace;
+    font-variant-numeric: tabular-nums;
+  }
+  .at-label {
+    font-size: 10px;
+    line-height: 1;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+    color: rgb(var(--text-faint));
+    font-family: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace;
+  }
+  .at-focus {
+    outline: none;
+  }
+  .at-focus:focus-visible {
+    outline: 2px solid rgb(var(--accent) / 0.7);
+    outline-offset: 2px;
+  }
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+}
+
+@keyframes at-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes at-pop-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes at-ping-ring {
+  0% {
+    transform: scale(1);
+    opacity: 0.55;
+  }
+  100% {
+    transform: scale(2.4);
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
 }
